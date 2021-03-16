@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+	
+	<head>
+	
+		<meta charset="utf-8">
+		<title>MSF Water Quality Assessment</title>
+	
+	</head>
+	
+	<body>
+		
+		<div id="header">
+			<h2>MSF Water Quality Assessment</h2>
+			<p id="status">[OpenCV.js is loading, please wait...]</p>
+			<br>
+		</div>
+		
+		<div style="display: flex" id="main">
+			
+			<div style="flex: 1" id="images">
+				
+				<div id="imgSrc">
+					<img id="canvasInput"></img>
+					<br>
+					<input type="file" id="fileInput" name="file"></input>
+				</div>
+				
+				<div id="imgRes">
+					<canvas id="canvasOutput"></canvas>
+				</div>
+				
+			</div>
+	
+		</div>
+		
+		<script type="text/javascript">
+			
+			let inImg = document.getElementById("canvasInput");
+			
+			let inFile = document.getElementById("fileInput");
+			inFile.addEventListener("change", (ev) => {
+				inImg.src = URL.createObjectURL(ev.target.files[0]);
+				inImg.onload = () => processImage();
+			}, false);
+			
+			
+			// image
+			
+			function processImage() {
+				
+				let src = cv.imread("canvasInput");
+				
+				let gray = new cv.Mat();
+				cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+				
+				let thresh = new cv.Mat();
+				cv.threshold(gray, thresh, 0, 255, (cv.THRESH_BINARY_INV + cv.THRESH_OTSU));
+				
+				let kernel = cv.Mat.ones(3, 3, cv.CV_8UC1);
+				let opened = new cv.Mat();
+				cv.morphologyEx(thresh, opened, cv.MORPH_OPEN, kernel, new cv.Point(-1, -1), 2);
+				
+				let sureBG = new cv.Mat();
+				cv.dilate(opened, sureBG, kernel, new cv.Point(-1, -1), 3);
+				
+				cv.imshow("canvasOutput", sureBG);
+				
+				src.delete();
+
+			};
+		
+			const onOpenCvReady = () => document.getElementById("status").innerHTML = "[OpenCV.js is ready.]";
+			
+			document.addEventListener("keypress", (ev) => {
+				if (ev.key === "Enter") processImage()
+			});
+		
+		</script>
+		
+		<script async src="opencv.js" onload="onOpenCvReady()" type="text/javascript"></script>
+	
+	</body>
+</html>
+

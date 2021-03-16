@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+	
+	<head>
+	
+		<meta charset="utf-8">
+		<title>MSF Water Quality Assessment</title>
+	
+	</head>
+	
+	<body>
+		
+		<div id="header">
+			<h2>MSF Water Quality Assessment</h2>
+			<p id="status">[OpenCV.js is loading, please wait...]</p>
+			<br>
+		</div>
+		
+		<div style="display: flex" id="main">
+		
+			<div style="flex: 0 0 15%" id="config">
+				<div id="colourPicker">
+					<p>Colour threshold:</p>
+					<input type="color" id="colourPickerInput" value="#000000" onchange="colourChange()">
+				</div>
+				
+				<br>
+				
+				<div id="tolerance">
+					<p>threshold tolerance: <span id="toleranceDisplay">10</span></p>
+					<input type="range" min="1" max="50" value="10" id="toleranceInput" oninput="toleranceRefresh()" onchange="toleranceChange()">
+				</div>
+				
+				<br>
+				
+				<div id="maxArea">
+					<p>max contour area: <span id="maxAreaDisplay">10</span></p>
+					<input type="range" min="1" max="50" value="10" id="maxAreaInput" oninput="maxAreaRefresh()" onchange="maxAreaChange()">
+				</div>
+				
+				<br>
+				
+				<div id="count">
+					<p>count: <span id="countDisplay">0</span></p>
+				</div>
+			</div>
+			
+			<div style="flex: 1" id="images">
+				
+				<div id="imgSrc">
+					<canvas width="800px" height="600px" id="canvasInput"></canvas>
+					<br>
+					<input type="file" id="fileInput" name="file"></input>
+				</div>
+				
+				<div id="imgRes">
+					<canvas width="800px" height="600px" id="canvasOutput"></canvas>
+				</div>
+				
+			</div>
+			
+			<div style="flex: 1">
+				<div id="imgResOverlay">
+					<canvas width="800px" height="600px" id="canvasOverlayOutput"></canvas>
+				</div>
+			</div>
+	
+		</div>
+		
+		<script type="text/javascript">
+			
+			const w = 800;
+			const h = 600;
+			
+			let inCanvas = document.getElementById("canvasInput");
+			
+			let inFile = document.getElementById("fileInput");
+			inFile.addEventListener("change", (ev) => {
+				let img = new Image();
+				img.src = URL.createObjectURL(ev.target.files[0]);
+				// img.width = "w";
+				// img.height = "h";
+				img.onload = function() {
+					// inCanvas.width = img.width;
+					// inCanvas.height = img.height;
+					inCanvas.getContext("2d").drawImage(img, 0, 0, w, h);
+					processImage();
+				}
+			}, false);			
+			
+			console.log(document.getElementById("canvasInput").offsetTop);
+			
+			let params = {
+				lowColour: [0, 0, 0, 0],
+				highColour: [10, 10, 10, 255],
+				tolerance: 10,
+				maxArea: 10
+			};
+			
+			// colour picker
+			
+			function colourChange() {
+				
+				let hex = document.getElementById("colourPickerInput").value;
+				
+				let m = hex.match(/^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i);
+				
+				params.lowColour = [
+					(parseInt(m[1], 16) >= params.tolerance) ? (parseInt(m[1], 16) - params.tolerance) : 0,
+					(parseInt(m[2], 16) >= params.tolerance) ? (parseInt(m[2], 16) - params.tolerance) : 0,
+					(parseInt(m[3], 16) >= params.tolerance) ? (parseInt(m[3], 16) - params.tolerance) : 0,
+					0
+				];
+				
+				params.highColour = [
+					(parseInt(m[1], 16) <= (255-params.tolerance)) ? (parseInt(m[1], 16) + params.tolerance) : 255,
+					(parseInt(m[2], 16) <= (255-params.tolerance)) ? (parseInt(m[2], 16) + params.tolerance) : 255,
+					(parseInt(m[3], 16) <= (255-params.tolerance)) ? (parseInt(m[3], 16) + params.tolerance) : 255,
+					255
+				];
+				
+				processImage();
+				
+			}
+			
+			// tolerance slider
+			
+			const toleranceRefresh = () => document.getElementById("toleranceDisplay").innerHTML = document.getElementById("toleranceInput").value;
+			
+			const toleranceChange = () => {
+				params.tolerance = parseInt(document.getElementById("toleranceInput").value);
+				colourChange();
+			}
+			
+			// max area slider
+			
+			const maxAreaRefresh = () => document.getElementById("maxAreaDisplay").innerHTML = document.getElementById("maxAreaInput").value;
+			
+			const maxAreaChange = () => {
+				params.maxArea = parseInt(document.getElementById("maxAreaInput").value);
+				colourChange();
+			}
+			
+			
+			// image
+			
+			function processImage() {
+				
+				let src = cv.imread("canvasInput");
+				
+				let mask = new cv.Mat();
+				let low = new cv.Mat(src.rows, src.cols, src.type(), params.lowColour);
+				let high = new cv.Mat(src.rows, src.cols, src.type(), params.highColour);
+				cv.inRange(src, low, high, mask);
+				//cv.bitwise_and(dst, dst, dst, mask);
+				
+				let contours = new cv.MatVector();
+				let hierarchy = new cv.Mat();
+				cv.findContours(mask, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+				
+				let res = cv.Mat.zeros(src.rows, src.cols, cv.CV_8U);
+				
+				for (let i = 0; i < contours.size(); i++) {
+					
+					if (cv.contourArea(contours.get(i)) <= params.maxArea) {
+						
+						cv.drawContours(src, contours, i, new cv.Scalar(255, 0, 0), 3);
+						cv.drawContours(res, contours, i, new cv.Scalar(255, 0, 0), 3);
+						
+					}
+					
+				}
+				// cv.drawContours(res, contours, -1, new cv.Scalar(255, 0, 0), 3);
+				
+				cv.imshow("canvasOutput", res);
+				cv.imshow("canvasOverlayOutput", src);
+				
+				document.getElementById("countDisplay").innerHTML = contours.size();
+				
+				src.delete();
+				res.delete();
+				mask.delete();
+				contours.delete();
+				hierarchy.delete();
+
+			};
+		
+			const onOpenCvReady = () => document.getElementById("status").innerHTML = "[OpenCV.js is ready.]";
+			
+			document.addEventListener("keypress", (ev) => {
+				if (ev.key === "Enter") processImage()
+			});
+			
+			document.getElementById("canvasInput").addEventListener("click", (ev) => {
+				let pixel = inCanvas.getContext("2d").getImageData((ev.clientX - inCanvas.offsetLeft), (ev.clientY - inCanvas.offsetTop), w, h);
+				document.getElementById("colourPickerInput").value = (
+					"#" +
+					((pixel.data[0].toString(16).length === 1) ? "0" + pixel.data[0].toString(16) : pixel.data[0].toString(16)) +
+					((pixel.data[1].toString(16).length === 1) ? "0" + pixel.data[1].toString(16) : pixel.data[1].toString(16)) +
+					((pixel.data[2].toString(16).length === 1) ? "0" + pixel.data[2].toString(16) : pixel.data[2].toString(16))
+				);
+				colourChange();
+			});
+		
+		</script>
+		
+		<script async src="opencv.js" onload="onOpenCvReady()" type="text/javascript"></script>
+	
+	</body>
+</html>
+
