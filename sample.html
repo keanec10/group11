@@ -1,0 +1,109 @@
+<html>
+	
+	<body>
+		
+		<div id="app">
+			
+			<div id="menu">
+				
+				<ul>
+					<li v-for="page in pages" v-on:click="navigatePage(page.key)">
+						{{ page.txt }}
+					</li>
+				</ul>
+				
+			</div>
+			
+			<div id="main">
+			
+				<div id="home" v-if="currentPage === 'home'">
+					
+					<h1 id="homeHeader">Home</h1>
+					<button v-on:click="changeHeader('ABC')">Button 1</button>
+					<button v-on:click="changeHeader('XYZ')">Button 2</button>
+					<p>
+						{{ homeMsg }}
+					</p>
+					
+				</div>
+				
+				<div id="help" v-if="currentPage === 'help'">
+				
+					<h1 id="helpHeader">Help</h1>
+					<h3>
+						{{ helpMsg }}
+					</h3>
+					
+				</div>
+				
+				<div id="results" v-if="currentPage === 'results'">
+				
+					<h1 id="resultsHeader">Results</h1>
+					<ol>
+						<li>
+							{{ resultsMsg }}
+						</li>
+					</ol>
+					
+				</div>
+				
+				<div id="settings" v-if="currentPage === 'settings'">
+				
+					<h1 id="settingsHeader">Settings</h1>
+					<ul>
+						<li>
+							{{ settingsMsg }}
+						</li>
+					</ul>
+					
+				</div>
+				
+			</div>
+			
+		</div>
+		
+		<script src="vue.js" type="text/javascript"></script>
+		
+		<script type="text/javascript">
+		
+			var app = new Vue({
+				
+				el: '#app',
+				
+				data: {
+					
+					pages: [
+						{ txt: "Home", key: "home" },
+						{ txt: "Help", key: "help" },
+						{ txt: "Results", key: "results" },
+						{ txt: "Settings", key: "settings" }
+					],
+					
+					currentPage: "home",
+					
+					homeMsg: "Hello there!",
+					helpMsg: "This is some help text",
+					resultsMsg: "Results are displayed here",
+					settingsMsg: "Tweak some settings here?"
+					
+				},
+				
+				methods: {
+					
+					navigatePage (page) {
+						
+						this.currentPage = page;
+						
+					},
+					
+					changeHeader: (data) => document.getElementById("homeHeader").innerHTML = data
+					
+				}
+				
+			});
+			
+		</script>
+		
+	</body>
+
+</html>
