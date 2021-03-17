@@ -17,11 +17,17 @@
 		</div>
 		
 		<div style="display: flex" id="main">
+		
+			<div style="flex: 0 0 15%" id="config">
+				<div id="count">
+					<p>count: <span id="countDisplay">0</span></p>
+				</div>
+			</div>
 			
 			<div style="flex: 1" id="images">
 				
 				<div id="imgSrc">
-					<img id="canvasInput"></img>
+					<canvas id="canvasInput"></canvas>
 					<br>
 					<input type="file" id="fileInput" name="file"></input>
 				</div>
@@ -31,17 +37,45 @@
 				</div>
 				
 			</div>
+			
+			<div style="flex: 1">
+				<div id="imgResOverlay">
+					<canvas id="canvasOverlayOutput"></canvas>
+				</div>
+			</div>
 	
 		</div>
 		
 		<script type="text/javascript">
 			
-			let inImg = document.getElementById("canvasInput");
+			const w = 360;
+			const h = 640;
+			
+			let inCanvas = document.getElementById("canvasInput");
+			let outCanvas = document.getElementById("canvasOutput");
+			let outCanvasOverlay = document.getElementById("canvasOverlayOutput");
 			
 			let inFile = document.getElementById("fileInput");
 			inFile.addEventListener("change", (ev) => {
-				inImg.src = URL.createObjectURL(ev.target.files[0]);
-				inImg.onload = () => processImage();
+				let img = new Image();
+				img.src = URL.createObjectURL(ev.target.files[0]);
+				img.width = w;
+				img.height = h;
+				img.onload = function() {
+					inCanvas.width = img.width;
+					inCanvas.height = img.height;
+					
+					outCanvas.width = img.width;
+					outCanvas.height = img.height;
+					
+					outCanvasOverlay.width = img.width;
+					outCanvasOverlay.height = img.height;
+					// inCanvas.width = w;
+					// inCanvas.height = h;
+					inCanvas.getContext("2d").drawImage(img, 0, 0, img.width, img.height);
+					// inCanvas.getContext("2d").drawImage(img, 0, 0, w, h);
+					processImage();
+				}
 			}, false);
 			
 			
@@ -51,26 +85,96 @@
 				
 				let src = cv.imread("canvasInput");
 				
-				let gray = new cv.Mat();
-				cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+				let data = new cv.Mat((src.rows * src.cols), 3, cv.CV_32F);
+				for (var y = 0; y < src.rows; y++) {
+					for (var x = 0; x < src.cols; x++) {
+						for (var z = 0; z < 3; z++) {
+							data.floatPtr(y + (x * src.rows))[z] = src.ucharPtr(y,x)[z];
+						}
+					}
+				}
 				
-				let thresh = new cv.Mat();
-				cv.threshold(gray, thresh, 0, 255, (cv.THRESH_BINARY_INV + cv.THRESH_OTSU));
+				let k = 2;
+				let labels = new cv.Mat();
+				let criteria = new cv.TermCriteria(cv.TermCriteria_EPS + cv.TermCriteria_MAX_ITER, 10, 1.0);
+				let centers = new cv.Mat();
+				let attempts = 3;
+				cv.kmeans(data, k, labels, criteria, attempts, cv.KMEANS_PP_CENTERS, centers);
 				
-				let kernel = cv.Mat.ones(3, 3, cv.CV_8UC1);
-				let opened = new cv.Mat();
-				cv.morphologyEx(thresh, opened, cv.MORPH_OPEN, kernel, new cv.Point(-1, -1), 2);
+				let count0 = 0;
+				let count1 = 0;
+				for (var y = 0; y < src.rows; y++) {
+					for (var x = 0; x < src.cols; x++) {
+						let cluster_idx = labels.intAt((y + (x * src.rows)), 0);
+						if (cluster_idx == 0) count0++;
+						if (cluster_idx == 1) count1++;
+					}
+				}
 				
-				let sureBG = new cv.Mat();
-				cv.dilate(opened, sureBG, kernel, new cv.Point(-1, -1), 3);
+				let idxBias = (count0 > count1) ? 0 : 1;
+				let dual = new cv.Mat(src.size(), cv.CV_8UC1);
+				for (var y = 0; y < src.rows; y++) {
+					for (var x = 0; x < src.cols; x++) {
+						let cluster_idx = (idxBias - labels.intAt((y + (x * src.rows)), 0));
+						dual.ucharPtr(y, x)[0] = (cluster_idx * 255);
+					}
+				}
 				
-				cv.imshow("canvasOutput", sureBG);
+				let grey = new cv.Mat(dual.size(), cv.CV_8UC1);
+				// cv.cvtColor(dual, grey, cv.COLOR_RGBA2GRAY, 0);
+				cv.threshold(dual, grey, 0, 255, (cv.THRESH_BINARY + cv.THRESH_OTSU));
+				
+				let kernelErode = cv.Mat.ones(5, 5, cv.CV_8UC1);
+				let anchor = new cv.Point(-1, -1);
+				cv.erode(grey, grey, kernelErode, anchor, 1, cv.BORDER_CONSTANT, cv.morphologyDefaultBorderValue());
+				
+				let kernelClose = cv.Mat.ones(3, 3, cv.CV_8UC1);
+				cv.morphologyEx(grey, grey, cv.MORPH_CLOSE, kernelClose);
+				
+				let contours = new cv.MatVector();
+				let hierarchy = new cv.Mat();
+				cv.findContours(grey, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+				
+				let overlay = new cv.Mat();
+				src.copyTo(overlay);
+				for (var i = 0; i < contours.size(); i++) {
+					let boundRect = cv.boundingRect(contours.get(i));
+					if (boundRect.width <= 50) {
+						cv.drawContours(overlay, contours, i, new cv.Scalar(0, 255, 0, 255), 2);
+					}
+				}
+				// cv.drawContours(overlay, contours, -1, new cv.Scalar(0, 255, 0, 255), 2);
+				
+				cv.imshow("canvasOutput", grey);
+				cv.imshow("canvasOverlayOutput", overlay);
+				
+				document.getElementById("countDisplay").innerHTML = contours.size();
 				
 				src.delete();
+				data.delete();
+				labels.delete();
+				centers.delete();
+				dual.delete();
+				grey.delete();
+				kernelClose.delete();
+				kernelErode.delete();
+				contours.delete();
+				hierarchy.delete();
+				overlay.delete();
 
 			};
 		
-			const onOpenCvReady = () => document.getElementById("status").innerHTML = "[OpenCV.js is ready.]";
+			const onOpenCvReady = () => {
+				// cv.onRuntimeInitialized = () => {
+				// 	try {
+				// 		processImage();
+				// 	} catch(err) {
+				// 		console.log(err);
+				// 		document.getElementById("status").innerHTML = "[OpenCV.js is ready.]";
+				// 	}
+				// }
+				document.getElementById("status").innerHTML = "[OpenCV.js is ready.]";
+			}
 			
 			document.addEventListener("keypress", (ev) => {
 				if (ev.key === "Enter") processImage()
