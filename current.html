@@ -47,21 +47,47 @@
 		</div>
 		
 		<script type="text/javascript">
+		
+			// params
+			// -> phone aspect ratio
+			const W = 360;
+			const H = 640;
+			// -> k means
+			const K = 2;
+			const MAX_KMEANS_ITERATIONS = 10;
+			const MIN_KMEANS_ACCURACY = 1.0;
+			const KMEANS_ATTEMPTS = 3;
+			// -> morphology
+			const EROSION_DIM = 5;
+			const CLOSING_DIM = 3;
+			// -> contours
+			const MAX_COLONY_WIDTH = 50;
+			const CONTOUR_THICKNESS = 2;
+			// -> colours
+			var GREEN = (0, 255, 0, 255);
 			
-			const w = 360;
-			const h = 640;
 			
+			// convenient input/output aliases
 			let inCanvas = document.getElementById("canvasInput");
 			let outCanvas = document.getElementById("canvasOutput");
 			let outCanvasOverlay = document.getElementById("canvasOverlayOutput");
 			
+			
+			// the file picker
 			let inFile = document.getElementById("fileInput");
 			inFile.addEventListener("change", (ev) => {
+				
+				// create the image item to be drawn to the canvas
 				let img = new Image();
 				img.src = URL.createObjectURL(ev.target.files[0]);
-				img.width = w;
-				img.height = h;
+				img.width = W;
+				img.height = H;
+				
 				img.onload = function() {
+					
+					// resize all the canvases to match the input image dimensions
+					// (despite constant dimensions, would rather specify here than hard-coded HTML for now)
+					
 					inCanvas.width = img.width;
 					inCanvas.height = img.height;
 					
@@ -70,92 +96,145 @@
 					
 					outCanvasOverlay.width = img.width;
 					outCanvasOverlay.height = img.height;
-					// inCanvas.width = w;
-					// inCanvas.height = h;
+					
+					// copy the image to a canvas
 					inCanvas.getContext("2d").drawImage(img, 0, 0, img.width, img.height);
-					// inCanvas.getContext("2d").drawImage(img, 0, 0, w, h);
+					
+					// automatically perform the image processing on upload
 					processImage();
+					
 				}
+				
 			}, false);
 			
 			
-			// image
-			
+			// the image processing
 			function processImage() {
 				
+				// read the input image
 				let src = cv.imread("canvasInput");
 				
+				
+				// we need the image in floating-point form to use the "k means" method
 				let data = new cv.Mat((src.rows * src.cols), 3, cv.CV_32F);
 				for (var y = 0; y < src.rows; y++) {
+					
 					for (var x = 0; x < src.cols; x++) {
+						
 						for (var z = 0; z < 3; z++) {
-							data.floatPtr(y + (x * src.rows))[z] = src.ucharPtr(y,x)[z];
+							
+							// access 1D array as if it were a 2D array
+							data.floatPtr(y + (x * src.rows))[z] = src.ucharPtr(y, x)[z];
+							
 						}
+						
 					}
+					
 				}
 				
-				let k = 2;
-				let labels = new cv.Mat();
-				let criteria = new cv.TermCriteria(cv.TermCriteria_EPS + cv.TermCriteria_MAX_ITER, 10, 1.0);
-				let centers = new cv.Mat();
-				let attempts = 3;
-				cv.kmeans(data, k, labels, criteria, attempts, cv.KMEANS_PP_CENTERS, centers);
 				
+				// "k means" works by reducing an image to its k most representitive colours
+				// we would like to loosely separate into colony or agar, and we luckily don't have much other colour noise
+				// so if we set k = 2, we are left with a very nice divide that we're looking for
+				let labels = new cv.Mat();
+				let criteria = new cv.TermCriteria(cv.TermCriteria_EPS + cv.TermCriteria_MAX_ITER, MAX_KMEANS_ITERATIONS, MIN_KMEANS_ACCURACY);
+				let centers = new cv.Mat();
+				cv.kmeans(data, K, labels, criteria, KMEANS_ATTEMPTS, cv.KMEANS_PP_CENTERS, centers);
+				
+				
+				// we want to mask the image into colonies = white and agar = black
+				// this is so that we can transform the colonies in the next section while ignoring the agar
+				// however, "k means" labels the end colours randomly, so we can't 100% know if colonies are labelled 0 or 1 for our k = 2 case
+				// we know that the agar will always be more voluminous than the colonies, so we can count the number of each labels
+				// the label with the higher count is the agar, so we can colour black or white accordingly
 				let count0 = 0;
 				let count1 = 0;
 				for (var y = 0; y < src.rows; y++) {
+					
 					for (var x = 0; x < src.cols; x++) {
-						let cluster_idx = labels.intAt((y + (x * src.rows)), 0);
-						if (cluster_idx == 0) count0++;
-						if (cluster_idx == 1) count1++;
+						
+						// fetch the current pixel's "k means" label
+						// again, pseudo-2D 1D array access
+						let clusterIdx = labels.intAt((y + (x * src.rows)), 0);
+						if (clusterIdx == 0) count0++;
+						if (clusterIdx == 1) count1++;
+						
 					}
+					
 				}
 				
+				
+				// our colouring equation is: colour = 255*(idxBias - label)
+				// where idxBias is a constant 0 or 1, and label is either 0 or 1 depending on the pixel's "k means" label
+				// if there were more 0s than 1s then agar is the 0 label and colonies have the 1 label, so we set idxBias = 1
+				// note that this makes our colour output 0 (black) for agar and 255 (white) for colonies
+				// if there were more 1s than 0s, we just flip it around and it works the same way
+				// this lets us always be sure we have colonies in white so they can be transformed next
 				let idxBias = (count0 > count1) ? 0 : 1;
-				let dual = new cv.Mat(src.size(), cv.CV_8UC1);
+				let divided = new cv.Mat(src.size(), cv.CV_8UC1);
 				for (var y = 0; y < src.rows; y++) {
+					
 					for (var x = 0; x < src.cols; x++) {
-						let cluster_idx = (idxBias - labels.intAt((y + (x * src.rows)), 0));
-						dual.ucharPtr(y, x)[0] = (cluster_idx * 255);
+						
+						// our above colour equation
+						divided.ucharPtr(y, x)[0] = 255*(idxBias - labels.intAt((y + (x * src.rows)), 0));
+						
 					}
+					
 				}
 				
-				let grey = new cv.Mat(dual.size(), cv.CV_8UC1);
-				// cv.cvtColor(dual, grey, cv.COLOR_RGBA2GRAY, 0);
-				cv.threshold(dual, grey, 0, 255, (cv.THRESH_BINARY + cv.THRESH_OTSU));
+				// leaving this in because if k > 2 this code will become relevant
+				// and because without the threshold "divided" doesn't display
+				// let grey = new cv.Mat(divided.size(), cv.CV_8UC1);
+				// cv.cvtColor(divided, grey, cv.COLOR_RGBA2GRAY, 0);
+				cv.threshold(divided, divided, 0, 255, (cv.THRESH_BINARY + cv.THRESH_OTSU));
 				
-				let kernelErode = cv.Mat.ones(5, 5, cv.CV_8UC1);
-				let anchor = new cv.Point(-1, -1);
-				cv.erode(grey, grey, kernelErode, anchor, 1, cv.BORDER_CONSTANT, cv.morphologyDefaultBorderValue());
 				
-				let kernelClose = cv.Mat.ones(3, 3, cv.CV_8UC1);
-				cv.morphologyEx(grey, grey, cv.MORPH_CLOSE, kernelClose);
+				// attempt to separate close-together colonies by eroding their edges
+				let kernelErode = cv.Mat.ones(EROSION_DIM, EROSION_DIM, cv.CV_8UC1);
+				cv.erode(divided, divided, kernelErode, new cv.Point(-1, -1), 1, cv.BORDER_CONSTANT, cv.morphologyDefaultBorderValue());
 				
+				
+				// attempt to avoid needless duplicate colonies by filling in their gaps
+				let kernelClose = cv.Mat.ones(CLOSING_DIM, CLOSING_DIM, cv.CV_8UC1);
+				cv.morphologyEx(divided, divided, cv.MORPH_CLOSE, kernelClose);
+				
+				
+				// count the number of potential colonies
 				let contours = new cv.MatVector();
 				let hierarchy = new cv.Mat();
-				cv.findContours(grey, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+				cv.findContours(divided, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 				
+				
+				// some areas of agar/background can be mistakenly labelled as colonies
+				// these are typically always abnormally large, so if we filter each "colony" by a max width we should be rid of nearly all fake colonies
+				// we can then draw the colony contours as an overlay over the original image for visual feedback
 				let overlay = new cv.Mat();
 				src.copyTo(overlay);
 				for (var i = 0; i < contours.size(); i++) {
-					let boundRect = cv.boundingRect(contours.get(i));
-					if (boundRect.width <= 50) {
-						cv.drawContours(overlay, contours, i, new cv.Scalar(0, 255, 0, 255), 2);
-					}
+					
+					// use the contour's bounding rectangle to filter by maximum width
+					let boundingRectangle = cv.boundingRect(contours.get(i));
+					if (boundingRectangle.width <= MAX_COLONY_WIDTH) cv.drawContours(overlay, contours, i, GREEN, CONTOUR_THICKNESS);
+					
 				}
-				// cv.drawContours(overlay, contours, -1, new cv.Scalar(0, 255, 0, 255), 2);
 				
-				cv.imshow("canvasOutput", grey);
+				
+				// display the outputs
+				cv.imshow("canvasOutput", divided);
 				cv.imshow("canvasOverlayOutput", overlay);
 				
+				
+				// update the colony counter
 				document.getElementById("countDisplay").innerHTML = contours.size();
 				
+				
+				// clean up OpenCV memory
 				src.delete();
 				data.delete();
 				labels.delete();
 				centers.delete();
-				dual.delete();
-				grey.delete();
+				divided.delete();
 				kernelClose.delete();
 				kernelErode.delete();
 				contours.delete();
@@ -163,7 +242,10 @@
 				overlay.delete();
 
 			};
-		
+			
+			
+			// depending on the OpenCV version the "onRuntimeInitialized" method must be used
+			// there is also an error on a different version where "processImage" quits on the first try but works fine thereafter
 			const onOpenCvReady = () => {
 				// cv.onRuntimeInitialized = () => {
 				// 	try {
@@ -173,9 +255,12 @@
 				// 		document.getElementById("status").innerHTML = "[OpenCV.js is ready.]";
 				// 	}
 				// }
+				// avoid race condition where OpenCV isn't ready in global scope
+				GREEN = new cv.Scalar(0, 255, 0, 255);
 				document.getElementById("status").innerHTML = "[OpenCV.js is ready.]";
 			}
 			
+			// allows for repeating a test on the current image
 			document.addEventListener("keypress", (ev) => {
 				if (ev.key === "Enter") processImage()
 			});
