@@ -17,6 +17,9 @@ body { background-image: linear-gradient(cornflowerblue, skyblue); }
 		display: flex;
 		flex-direction: row;
 		
+		background-color: green;
+		border-radius: 5px;
+		
 	}
 	
 		.navItem {
@@ -28,12 +31,6 @@ body { background-image: linear-gradient(cornflowerblue, skyblue); }
 			text-align: center;
 			
 			color: brown;
-			
-		}
-		
-		.navItem + .navItem {
-			
-			border-left: 1px solid grey;
 			
 		}
 		
@@ -70,12 +67,5 @@ body { background-image: linear-gradient(cornflowerblue, skyblue); }
 			border-radius: 5px;
 			
 		}
-	
-			#nextCameraSteps {
-				
-				display: flex;
-				flex-direction: row;
-				
-			}
 		
 		
