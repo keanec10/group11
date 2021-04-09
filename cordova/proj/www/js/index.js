@@ -116,8 +116,14 @@ var app = new Vue({
 			
 		},
 		
-		// simply proceed from configuring the test category to performing the test
-		beginCameraCapture: () => app.$data.cameraStage = "capture",
+		// proceed from configuring the test category to performing the test
+		beginCameraCapture: () => {
+			
+			// CAMERA FEED SCRIPTING GOES HERE!!!!!!
+			
+			app.$data.cameraStage = "capture";
+			
+		},
 		
 		addTest: () => {
 			
