@@ -16,7 +16,10 @@ var app = new Vue({
 		nxtPage: null,
 		
 		// the test data
-		logs: null,
+		logs: {
+			index: [],
+			tests: []
+		},
 		
 		// test configuration
 		activeTestCategory: "",
