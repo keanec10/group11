@@ -1,0 +1,89 @@
+<html>
+
+	<head>
+		
+		<link rel="stylesheet" href="css/index.css">
+		
+		<title>Sanaqua</title>
+		
+	</head>
+
+	<body>
+		
+		<div id="app">
+			
+			<div id="nav">
+				
+				<div class="navItem" v-bind:class="{ navItemSelected: (nxtPage === page.key) }" v-for="page in pages" v-on:click.left="navigate(page.key)">
+					{{ page.title }}
+				</div>
+				
+			</div>
+			
+			<div id="main">
+			
+				<div id="results" v-if="currentPage === 'results'">
+					
+					<h3>Test results:</h3>
+					<p v-for="test in logs.tests">
+						{{ test }}
+					</p>
+					
+				</div>
+				
+				<div id="camera" v-if="currentPage === 'camera'">
+					
+					<div id="cameraPrep" v-if="cameraStage === 'prep'">
+						
+						<div id="testCategorySelection">
+							
+							<select v-model="activeTestCategory">
+								<option selected disabled value="">choose test category</option>
+								<option v-for="category in logs.index" v-bind:value="category.id">
+									{{ category.name }}
+								</option>
+							</select>
+							
+							<button v-on:click.left="addTestCategory"> + </button>
+							<button v-on:click.left="removeTestCategory"> - </button>
+							
+							<div id="nextCameraSteps">
+								
+								<button v-on:click="beginCameraCapture">use this test category</button>
+								
+							</div>
+							
+						</div>
+						
+					</div>
+					
+					<div id="cameraCapture" v-if="cameraStage === 'capture'">
+						
+						<p>// camera </p>
+						<button v-on:click.left="addTest('testing')">Add test</button>
+						
+					</div>
+					
+				</div>
+				
+				<div id="info" v-if="currentPage === 'info'">
+					
+					<p>// here will go some info about the app, testing procedure, etc.</p>
+					
+				</div>
+				
+			</div>
+			
+		</div>
+		
+		<script src="cordova.js"></script>
+		<script src="vue.js"></script>
+		<!-- <script src="opencv.js"></script> -->
+		
+		<!-- <script src="js/imageProcessing.js"></script> -->
+		<script src="js/index.js"></script>
+		
+	</body>
+
+</html>
+

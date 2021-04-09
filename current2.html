@@ -50,8 +50,8 @@
 		
 			// params
 			// -> phone aspect ratio
-			const W = 400;
-			const H = 300;
+			const W = 360;
+			const H = 640;
 			// -> k means
 			const K = 2;
 			const MAX_KMEANS_ITERATIONS = 10;
@@ -61,7 +61,7 @@
 			const EROSION_DIM = 5;
 			const CLOSING_DIM = 3;
 			// -> contours
-			const MAX_COLONY_WIDTH = 500;
+			const MAX_COLONY_WIDTH = 50;
 			const CONTOUR_THICKNESS = 2;
 			// -> colours
 			var GREEN = (0, 255, 0, 255);
@@ -182,6 +182,12 @@
 					}
 					
 				}
+				cv.threshold(divided, divided, 0, 255, (cv.THRESH_BINARY + cv.THRESH_OTSU));
+				
+				let overlay = new cv.Mat(src.rows, src.cols, src.type(), new cv.Scalar(0, 0, 0, 255));
+				src.copyTo(overlay, divided);
+				
+				/*
 				
 				// leaving this in because if k > 2 this code will become relevant
 				// and because without the threshold "divided" doesn't display
@@ -219,6 +225,8 @@
 					
 				}
 				
+				*/
+				
 				
 				// display the outputs
 				cv.imshow("canvasOutput", divided);
@@ -226,7 +234,7 @@
 				
 				
 				// update the colony counter
-				document.getElementById("countDisplay").innerHTML = contours.size();
+				// document.getElementById("countDisplay").innerHTML = contours.size();
 				
 				
 				// clean up OpenCV memory
@@ -235,10 +243,10 @@
 				labels.delete();
 				centers.delete();
 				divided.delete();
-				kernelClose.delete();
-				kernelErode.delete();
-				contours.delete();
-				hierarchy.delete();
+				// kernelClose.delete();
+				// kernelErode.delete();
+				// contours.delete();
+				// hierarchy.delete();
 				overlay.delete();
 
 			};
