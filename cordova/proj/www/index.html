@@ -2,6 +2,10 @@
 
 	<head>
 		
+		<meta name="format-detection" content="telephone=no">
+		<meta name="msapplication-tap-highlight" content="no">
+		<meta name="viewport" content="initial-scale=1, width=device-width, viewport-fit=cover">
+		
 		<link rel="stylesheet" href="css/index.css">
 		
 		<title>Sanaqua</title>
@@ -27,7 +31,7 @@
 			<div id="main">
 				
 				<!-- results page -->
-				<div id="results" v-if="currentPage === 'results'">
+				<div id="results" v-show="currentPage === 'results'">
 					
 					<h3>Test results:</h3>
 					<p v-for="test in logs.tests">
@@ -38,10 +42,10 @@
 				
 				
 				<!-- camera setup/capture page -->
-				<div id="camera" v-if="currentPage === 'camera'">
+				<div id="camera" v-show="currentPage === 'camera'">
 					
 					<!-- test configuration screen -->
-					<div id="cameraPrep" v-if="cameraStage === 'prep'">
+					<div id="cameraPrep" v-show="cameraStage === 'prep'">
 						
 						<div id="testCategorySelection">
 							
@@ -62,11 +66,15 @@
 					</div>
 					
 					<!-- test capture screen -->
-					<div id="cameraCapture" v-if="cameraStage === 'capture'">
+					<div id="cameraCapture" v-show="cameraStage === 'capture'" v-on:click="conductTest">
 						
-						<!-- CAMERA HTML GOES HERE!!!!!!!!!!! -->
-						<p>// camera </p>
-						<button v-on:click.left="addTest('testing')">Add test</button>
+						<video id="cameraFeed"></video>
+						
+					</div>
+					
+					<div id="cameraResult" v-show="cameraStage === 'result'" v-on:click="recordTest">
+						
+						<canvas id="imageProcessingOutput"></canvas>
 						
 					</div>
 					
@@ -74,10 +82,16 @@
 				
 				
 				<!-- info page -->
-				<div id="info" v-if="currentPage === 'info'">
+				<div id="info" v-show="currentPage === 'info'">
 					
 					<p>// here will go some info about the app, testing procedure, etc.</p>
 					
+				</div>
+				
+				
+				<!-- loading screen -->
+				<div id="loading" v-show="currentPage === 'loading'">
+					<h1>Loading...</h1>
 				</div>
 				
 			</div>
@@ -87,7 +101,7 @@
 		<!-- scripts -->
 		<script src="cordova.js"></script>
 		<script src="vue.js"></script>
-		<!-- <script src="opencv.js"></script> -->
+		<script src="opencv.js"></script>
 		
 		<!-- <script src="js/imageProcessing.js"></script> -->
 		<script src="js/index.js"></script>
